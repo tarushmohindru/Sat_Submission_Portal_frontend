@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { auth, provider } from "../lib/firebase";
 import { signInWithPopup } from "firebase/auth";
+import { signInWithRedirect } from "firebase/auth";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-toastify";
 
@@ -34,6 +35,7 @@ const Auth = () => {
 
     try {
       setIsSigningIn(true);
+      // await signInWithRedirect(auth, provider);
       await signInWithPopup(auth, provider);
       // Backend authentication is handled by AuthContext
       // Navigation happens automatically when isAuthenticated becomes true
@@ -72,7 +74,7 @@ const Auth = () => {
         transition={{ duration: 0.7, ease: "easeOut" }}
         className="relative z-10"
       >
-        <Card className="w-[100%] backdrop-blur-md bg-white/50 border border-white/10 shadow-2xl">
+        <Card className="w-[full] backdrop-blur-md bg-white/50 border border-white/10 shadow-2xl">
           <CardHeader className="space-y-6 text-center pt-8 pb-4">
             <motion.div
               initial={{ scale: 0 }}
