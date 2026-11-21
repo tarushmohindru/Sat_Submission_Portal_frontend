@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useAuth } from "@/contexts/useAuth";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { LogOut } from "lucide-react";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -31,29 +32,27 @@ const Navbar = () => {
   const avatarUrl = user?.photoURL || undefined;
 
   return (
-    <nav className="fixed top-0 w-full z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
-      <div className="container mx-auto px-4 py-2 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          {/* Served from public/ (the old external logo URL's domain is gone). */}
-          <img
-            src="/logo.png"
-            alt="Saturnalia"
-            className="h-8 w-auto"
-          />
-          <div className="h-6 w-px bg-white/20" /> {/* Divider */}
-          <h1 className="text-xl font-semibold text-white">
+    <nav className="fixed top-0 inset-x-0 z-50 bg-black/60 backdrop-blur-md border-b border-white/10">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <img src="/logo.png" alt="Saturnalia" className="h-6 sm:h-7 w-auto shrink-0" />
+          <span className="hidden sm:block h-6 w-px bg-white/20" aria-hidden="true" />
+          <span className="hidden sm:block truncate text-base font-semibold text-white">
             SatHack Submission Portal
-          </h1>
+          </span>
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-              <div className="text-right mr-2">
-                <p className="text-sm font-medium text-white">{displayName}</p>
-                <p className="text-xs text-white/60 truncate max-w-[150px]">{email}</p>
+            <button
+              className="flex items-center gap-3 rounded-full py-1 pl-1 pr-1 sm:pl-3 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 min-w-0"
+              aria-label="Account menu"
+            >
+              <div className="hidden sm:block text-right min-w-0">
+                <p className="text-sm font-medium text-white truncate max-w-[200px]">{displayName}</p>
+                <p className="text-xs text-white/70 truncate max-w-[200px]">{email}</p>
               </div>
-              <Avatar>
+              <Avatar className="h-9 w-9 ring-2 ring-white/20">
                 {avatarUrl && (
                   <AvatarImage src={avatarUrl} alt={displayName} referrerPolicy="no-referrer" />
                 )}
@@ -61,8 +60,13 @@ const Navbar = () => {
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
+            <div className="px-2 py-2 sm:hidden">
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{email}</p>
+            </div>
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+              <LogOut className="h-4 w-4" aria-hidden="true" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

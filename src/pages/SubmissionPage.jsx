@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Github,
+  Lock,
+  Presentation,
+  Users,
+  Video,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 import SubmissionDialog from "@/components/SubmissionDialog";
@@ -22,6 +31,62 @@ const INITIAL_FORM_STATE = {
   description: "",
 };
 
+// Keep in sync with backend/middlewares/validation_middlewares.js.
+const MAX_NAME_LENGTH = 100;
+const MAX_DESCRIPTION_LENGTH = 5000;
+const PHONE_PATTERN = /^\+?[0-9\s\-().]{7,20}$/;
+
+const inputClass =
+  "h-11 bg-white/10 border-white/25 text-white text-base placeholder:text-white/40 focus-visible:border-white/60 focus-visible:ring-white/20";
+
+/** Labelled form field with optional hint text. */
+const Field = ({ id, label, hint, children, className }) => (
+  <div className={cn("space-y-2", className)}>
+    <label htmlFor={id} className="block text-sm font-medium text-white">
+      {label} <span className="text-red-400" aria-hidden="true">*</span>
+    </label>
+    {children}
+    {hint && <p className="text-xs text-white/60">{hint}</p>}
+  </div>
+);
+
+/** Section heading with an icon. */
+const SectionTitle = ({ icon: Icon, title, subtitle }) => (
+  <div className="flex items-start gap-3">
+    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white">
+      <Icon className="h-5 w-5" aria-hidden="true" />
+    </span>
+    <div>
+      <h2 className="text-lg font-semibold text-white">{title}</h2>
+      {subtitle && <p className="text-sm text-white/60">{subtitle}</p>}
+    </div>
+  </div>
+);
+
+/** One label/value row in the read-only summary. */
+const SummaryItem = ({ label, children, className }) => (
+  <div className={cn("min-w-0", className)}>
+    <dt className="text-xs font-medium uppercase tracking-wide text-white/50">{label}</dt>
+    <dd className="mt-1 text-base text-white wrap-break-word">{children || "—"}</dd>
+  </div>
+);
+
+const SummaryLink = ({ icon: Icon, label, href }) => (
+  <a
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="group flex items-center gap-3 rounded-lg border border-white/15 bg-white/5 px-4 py-3 transition hover:bg-white/10 hover:border-white/30"
+  >
+    <Icon className="h-5 w-5 shrink-0 text-white/80" aria-hidden="true" />
+    <div className="min-w-0 flex-1">
+      <p className="text-sm font-medium text-white">{label}</p>
+      <p className="truncate text-xs text-sky-300">{href}</p>
+    </div>
+    <ExternalLink className="h-4 w-4 shrink-0 text-white/50 group-hover:text-white" aria-hidden="true" />
+  </a>
+);
+
 const Submission = () => {
   const { isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -29,25 +94,26 @@ const Submission = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasExistingSubmission, setHasExistingSubmission] = useState(false);
+  const [submittedAt, setSubmittedAt] = useState("");
 
-  // Submissions are final: once one exists, show it read-only.
-  const isLocked = hasExistingSubmission || isSubmitting;
-
-  // Load the team's submission (if any) into the form and lock it.
+  // Load the team's submission (if any). Submissions are final, so once one
+  // exists the page shows a read-only summary instead of the form.
   const loadSubmission = useCallback(async () => {
     try {
       const submissionResponse = await getSubmission();
 
       if (submissionResponse.hasSubmission && submissionResponse.data) {
+        const data = submissionResponse.data;
         setFormData({
-          teamName: submissionResponse.data.teamName || "",
-          leaderName: submissionResponse.data.leaderName || "",
-          leaderPhone: submissionResponse.data.leaderPhone || "",
-          githubLink: submissionResponse.data.githubLink || "",
-          pptLink: submissionResponse.data.pptLink || "",
-          videoLink: submissionResponse.data.videoLink || "",
-          description: submissionResponse.data.description || "",
+          teamName: data.teamName || "",
+          leaderName: data.leaderName || "",
+          leaderPhone: data.leaderPhone || "",
+          githubLink: data.githubLink || "",
+          pptLink: data.pptLink || "",
+          videoLink: data.videoLink || "",
+          description: data.description || "",
         });
+        setSubmittedAt(data.submissionTime || "");
         setHasExistingSubmission(true);
       }
     } catch (error) {
@@ -58,7 +124,6 @@ const Submission = () => {
     }
   }, []);
 
-  // Load any existing submission when the component mounts
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -85,9 +150,12 @@ const Submission = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (hasExistingSubmission) return;
-    // Validate required fields
     if (Object.values(formData).some((value) => !value.trim())) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+    if (!PHONE_PATTERN.test(formData.leaderPhone.trim())) {
+      toast.error("Please enter a valid phone number (digits, spaces, dashes, optional +)");
       return;
     }
     setShowConfirmation(true);
@@ -98,12 +166,14 @@ const Submission = () => {
 
     try {
       setIsSubmitting(true);
-      
-      await submitTeamData(formData);
+
+      const response = await submitTeamData(formData);
 
       toast.success("Submission successful! Your project has been submitted.");
+      setSubmittedAt(response?.data?.submissionTime || "");
       setHasExistingSubmission(true);
       setShowConfirmation(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error("Submission error:", error);
       toast.error(getErrorMessage(error, "Failed to submit. Please try again."));
@@ -117,190 +187,227 @@ const Submission = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen w-full relative">
-      <Background initialScale={1.2} />
+  const descriptionLength = formData.description.trim().length;
 
-      {/* Navbar */}
+  return (
+    <div className="min-h-dvh w-full relative">
+      <Background initialScale={1.2} />
       <Navbar />
 
-      {/* Content */}
-      <div className="container mx-auto px-4 pt-24 pb-12">
+      <main className="relative z-10 mx-auto w-full max-w-3xl px-4 sm:px-6 pt-24 pb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
+          transition={{ duration: 0.5 }}
         >
-          <Card className="max-w-3xl mx-auto backdrop-blur-md bg-black/30 border border-white/10 shadow-2xl">
-            <CardHeader className="text-center pb-4">
-              <CardTitle className="text-2xl font-bold bg-linear-to-r from-white to-white/80 bg-clip-text text-transparent">
-                Project Submission Form
-              </CardTitle>
-              {hasExistingSubmission && (
-                <p className="text-sm text-green-400 mt-2">
-                  Your project has been submitted. Submissions are final and can't be edited.
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-                </div>
-              ) : (
-                <>
-                  <form onSubmit={handleSubmit}>
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.2 }}
-                      className="space-y-6"
-                    >
-                      <div className="bg-white/5 p-4 rounded-lg border border-white/10 space-y-4">
-                        <h3 className="text-lg font-semibold text-white">Team Information</h3>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-white/70">
-                            Team Name <span className="text-red-400">*</span>
-                          </label>
-                          <Input
-                            name="teamName"
-                            value={formData.teamName}
-                            onChange={handleInputChange}
-                            type="text"
-                            className="bg-white/10 border-white/20 text-white"
-                            placeholder="Your team name"
-                            required
-                            maxLength={100}
-                            readOnly={hasExistingSubmission}
-                            disabled={isLocked}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-white/70">
-                            Team Leader Name <span className="text-red-400">*</span>
-                          </label>
-                          <Input
-                            name="leaderName"
-                            value={formData.leaderName}
-                            onChange={handleInputChange}
-                            type="text"
-                            className="bg-white/10 border-white/20 text-white"
-                            placeholder="Full name"
-                            required
-                            maxLength={100}
-                            readOnly={hasExistingSubmission}
-                            disabled={isLocked}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-white/70">
-                            Team Leader Phone <span className="text-red-400">*</span>
-                          </label>
-                          <Input
-                            name="leaderPhone"
-                            value={formData.leaderPhone}
-                            onChange={handleInputChange}
-                            type="tel"
-                            className="bg-white/10 border-white/20 text-white"
-                            placeholder="+91 98765 43210"
-                            required
-                            readOnly={hasExistingSubmission}
-                            disabled={isLocked}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <span className="text-sm font-medium text-white/70">Team Leader Email</span>
-                          <p className="text-white font-medium">{user?.email || "N/A"}</p>
-                          <p className="text-xs text-white/50">From your Google account.</p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white/70">
-                          GitHub Link <span className="text-red-400">*</span>
-                        </label>
-                        <Input
-                          name="githubLink"
-                          value={formData.githubLink}
-                          onChange={handleInputChange}
-                          type="url"
-                          className="bg-white/10 border-white/20 text-white"
-                          placeholder="https://github.com/your-repo"
-                          required
-                          readOnly={hasExistingSubmission}
-                          disabled={isLocked}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white/70">
-                          PPT Link <span className="text-red-400">*</span>
-                        </label>
-                        <Input
-                          name="pptLink"
-                          value={formData.pptLink}
-                          onChange={handleInputChange}
-                          type="url"
-                          className="bg-white/10 border-white/20 text-white"
-                          placeholder="https://drive.google.com/..."
-                          required
-                          readOnly={hasExistingSubmission}
-                          disabled={isLocked}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white/70">
-                          Video Link <span className="text-red-400">*</span>
-                        </label>
-                        <Input
-                          name="videoLink"
-                          value={formData.videoLink}
-                          onChange={handleInputChange}
-                          type="url"
-                          className="bg-white/10 border-white/20 text-white"
-                          placeholder="https://youtube.com/..."
-                          required
-                          readOnly={hasExistingSubmission}
-                          disabled={isLocked}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white/70">
-                          Project Description <span className="text-red-400">*</span>
-                        </label>
-                        <Textarea
-                          name="description"
-                          value={formData.description}
-                          onChange={handleInputChange}
-                          className="bg-white/10 border-white/20 text-white min-h-[150px]"
-                          placeholder="Describe your project..."
-                          required
-                          readOnly={hasExistingSubmission}
-                          disabled={isLocked}
-                        />
-                      </div>
-                    </motion.div>
+          <header className="mb-6 text-center sm:text-left">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Project Submission</h1>
+            <p className="mt-1 text-sm sm:text-base text-white/70">
+              {hasExistingSubmission
+                ? "Here's what your team submitted."
+                : "Fill in your team and project details. You can submit only once."}
+            </p>
+          </header>
 
-                    {!hasExistingSubmission && (
-                      <motion.div
-                        whileHover={{ scale: isSubmitting ? 1 : 1.01 }}
-                        whileTap={{ scale: isSubmitting ? 1 : 0.99 }}
-                        className="pt-6"
-                      >
-                        <Button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full h-12 bg-linear-to-r from-gray-700 to-gray-800 hover:from-slate-700 hover:to-slate-800 border border-white/50 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isSubmitting ? "Submitting..." : "Submit Project"}
-                        </Button>
-                      </motion.div>
-                    )}
-                  </form>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-white/15 bg-neutral-950/80 backdrop-blur-md shadow-2xl">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-20">
+                <div className="h-10 w-10 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <p className="text-sm text-white/60">Loading your submission...</p>
+              </div>
+            ) : hasExistingSubmission ? (
+              /* ---------------- Submitted: read-only summary ---------------- */
+              <div className="p-5 sm:p-8 space-y-8">
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/15 p-4">
+                  <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-400" aria-hidden="true" />
+                  <div>
+                    <p className="font-semibold text-emerald-300">Project submitted</p>
+                    <p className="text-sm text-emerald-100/80">
+                      {submittedAt ? `Submitted on ${submittedAt}. ` : ""}
+                      Submissions are final and can&apos;t be edited.
+                    </p>
+                  </div>
+                </div>
+
+                <section className="space-y-4">
+                  <SectionTitle icon={Users} title="Team Information" />
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-white/10 bg-white/5 p-4 sm:p-5">
+                    <SummaryItem label="Team name">{formData.teamName}</SummaryItem>
+                    <SummaryItem label="Team leader">{formData.leaderName}</SummaryItem>
+                    <SummaryItem label="Leader phone">{formData.leaderPhone}</SummaryItem>
+                    <SummaryItem label="Leader email">{user?.email}</SummaryItem>
+                  </dl>
+                </section>
+
+                <section className="space-y-4">
+                  <SectionTitle icon={FileText} title="Project Details" />
+                  <div className="grid grid-cols-1 gap-3">
+                    <SummaryLink icon={Github} label="GitHub repository" href={formData.githubLink} />
+                    <SummaryLink icon={Presentation} label="Presentation (PPT)" href={formData.pptLink} />
+                    <SummaryLink icon={Video} label="Demo video" href={formData.videoLink} />
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 sm:p-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-white/50">Description</p>
+                    <p className="mt-2 whitespace-pre-wrap wrap-break-word text-base leading-relaxed text-white">
+                      {formData.description}
+                    </p>
+                  </div>
+                </section>
+              </div>
+            ) : (
+              /* ---------------- Not submitted yet: the form ---------------- */
+              <form onSubmit={handleSubmit} className="p-5 sm:p-8 space-y-10">
+                <section className="space-y-5">
+                  <SectionTitle
+                    icon={Users}
+                    title="Team Information"
+                    subtitle="Details of your team and its leader."
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Field id="teamName" label="Team name" className="md:col-span-2">
+                      <Input
+                        id="teamName"
+                        name="teamName"
+                        value={formData.teamName}
+                        onChange={handleInputChange}
+                        className={inputClass}
+                        placeholder="e.g. Byte Busters"
+                        maxLength={MAX_NAME_LENGTH}
+                        autoComplete="organization"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </Field>
+                    <Field id="leaderName" label="Team leader name">
+                      <Input
+                        id="leaderName"
+                        name="leaderName"
+                        value={formData.leaderName}
+                        onChange={handleInputChange}
+                        className={inputClass}
+                        placeholder="Full name"
+                        maxLength={MAX_NAME_LENGTH}
+                        autoComplete="name"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </Field>
+                    <Field id="leaderPhone" label="Team leader phone">
+                      <Input
+                        id="leaderPhone"
+                        name="leaderPhone"
+                        type="tel"
+                        inputMode="tel"
+                        value={formData.leaderPhone}
+                        onChange={handleInputChange}
+                        className={inputClass}
+                        placeholder="+91 98765 43210"
+                        maxLength={20}
+                        autoComplete="tel"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </Field>
+                    <div className="md:col-span-2 space-y-2">
+                      <span className="block text-sm font-medium text-white">Team leader email</span>
+                      <div className="flex h-11 items-center gap-2 rounded-md border border-white/15 bg-white/5 px-3 text-base text-white/90">
+                        <Lock className="h-4 w-4 shrink-0 text-white/50" aria-hidden="true" />
+                        <span className="truncate">{user?.email || "—"}</span>
+                      </div>
+                      <p className="text-xs text-white/60">Taken from your Google account.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-5">
+                  <SectionTitle
+                    icon={FileText}
+                    title="Project Details"
+                    subtitle="Make sure every link is public or shared with view access."
+                  />
+                  <div className="space-y-5">
+                    <Field id="githubLink" label="GitHub repository link">
+                      <Input
+                        id="githubLink"
+                        name="githubLink"
+                        type="url"
+                        inputMode="url"
+                        value={formData.githubLink}
+                        onChange={handleInputChange}
+                        className={inputClass}
+                        placeholder="https://github.com/your-team/your-repo"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </Field>
+                    <Field id="pptLink" label="Presentation (PPT) link" hint="Google Drive / Slides / Canva link with view access.">
+                      <Input
+                        id="pptLink"
+                        name="pptLink"
+                        type="url"
+                        inputMode="url"
+                        value={formData.pptLink}
+                        onChange={handleInputChange}
+                        className={inputClass}
+                        placeholder="https://drive.google.com/..."
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </Field>
+                    <Field id="videoLink" label="Demo video link" hint="YouTube (unlisted is fine) or Google Drive.">
+                      <Input
+                        id="videoLink"
+                        name="videoLink"
+                        type="url"
+                        inputMode="url"
+                        value={formData.videoLink}
+                        onChange={handleInputChange}
+                        className={inputClass}
+                        placeholder="https://youtube.com/..."
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </Field>
+                    <div className="space-y-2">
+                      <label htmlFor="description" className="block text-sm font-medium text-white">
+                        Project description <span className="text-red-400" aria-hidden="true">*</span>
+                      </label>
+                      <Textarea
+                        id="description"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        className="min-h-40 bg-white/10 border-white/25 text-white text-base placeholder:text-white/40 focus-visible:border-white/60 focus-visible:ring-white/20"
+                        placeholder="What does your project do, how did you build it, and what problem does it solve?"
+                        maxLength={MAX_DESCRIPTION_LENGTH}
+                        required
+                        disabled={isSubmitting}
+                      />
+                      <p className={cn("text-right text-xs", descriptionLength > MAX_DESCRIPTION_LENGTH * 0.9 ? "text-amber-300" : "text-white/50")}>
+                        {descriptionLength} / {MAX_DESCRIPTION_LENGTH}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="space-y-3 border-t border-white/10 pt-6">
+                  <p className="flex items-center gap-2 text-sm text-amber-300">
+                    <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    You can submit only once. Please double-check everything.
+                  </p>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full h-12 rounded-xl bg-white text-base font-semibold text-gray-900 shadow-lg transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? "Submitting..." : "Review & Submit"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </motion.div>
-      </div>
+      </main>
 
       <SubmissionDialog
         isOpen={showConfirmation}
