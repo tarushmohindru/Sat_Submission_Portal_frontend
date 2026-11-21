@@ -6,6 +6,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 // Create axios instance with default configuration
 const api = axios.create({
   baseURL: API_URL,
+  // Fail instead of hanging forever (which would leave spinners stuck). Must
+  // exceed the backend's worst case: a submit holds a 30 s lease for Sheets work.
+  timeout: 45_000,
   headers: {
     'Content-Type': 'application/json',
   },

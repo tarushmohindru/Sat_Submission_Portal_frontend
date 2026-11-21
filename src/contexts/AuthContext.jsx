@@ -73,17 +73,29 @@ export const AuthProvider = ({ children }) => {
         });
         setIsAuthenticated(true);
       } catch (error) {
-        console.error('Backend authentication failed:', error);
+        console.error(
+          'Backend authentication failed:',
+          error.response?.status ?? error.code ?? 'no response',
+          error.response?.data?.error ?? error.message
+        );
         authAttemptRef.current = null;
         clearStoredToken();
         clearSession();
 
+        // Always sign out of Firebase on failure. If the Firebase session were
+        // kept (e.g. after a network error or 5xx), the next "Sign in" click
+        // would return the same user, onAuthStateChanged would not fire again,
+        // and the login button would stay on "Signing in..." forever.
+        try {
+          await auth.signOut();
+        } catch (signOutError) {
+          console.warn('[AUTH] Firebase sign-out failed', signOutError);
+        }
+
         const status = error.response?.status;
         if (status === 401 || status === 403) {
-          // The backend rejected this Firebase account (not a leader, team not
-          // confirmed, invalid/revoked token). Sign out of Firebase so the user
-          // isn't left signed in but stuck, and show the server's reason.
-          await auth.signOut();
+          // The backend rejected this account (not a leader, team not
+          // confirmed, invalid/revoked token): show the server's reason.
           toast.error(getErrorMessage(error, 'Only team leaders can access this portal.'));
         } else {
           toast.error(getErrorMessage(error, 'Authentication failed. Please try again.'));
