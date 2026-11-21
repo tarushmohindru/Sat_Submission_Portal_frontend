@@ -40,7 +40,7 @@ const Auth = () => {
   const busy = isSigningIn || isLoading;
 
   return (
-    <div className="min-h-dvh w-full relative flex items-center justify-center px-4 py-10 overflow-hidden">
+    <div className="min-h-dvh w-full relative flex items-center justify-center px-4 py-6 sm:py-6 overflow-hidden">
       <Background initialScale={1.1} />
 
       <motion.main
@@ -49,21 +49,30 @@ const Auth = () => {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 w-full max-w-md"
       >
+        {/* Festival logo on the dark background (its "realme presents" text is white). */}
+        <img
+          src="/saturnalia_realme.webp"
+          alt="realme presents Saturnalia 2026, 51st Edition: The Ascension of Legacy"
+          width="720"
+          height="498"
+          className="mx-auto mb-5 h-auto w-full max-w-[230px] sm:max-w-[270px] drop-shadow-[0_8px_24px_rgba(0,0,0,0.6)]"
+        />
+
         <div className="rounded-2xl bg-white shadow-2xl shadow-black/50 ring-1 ring-white/20 overflow-hidden">
           {/* Brand colour strip (colours from the SAT HACK logo) */}
           <div className="h-1.5 w-full bg-linear-to-r from-[#6fcf7c] via-[#c8a6f2] to-[#e7f05a]" />
 
-          <div className="px-6 py-8 sm:px-10 sm:py-10 flex flex-col items-center text-center">
+          <div className="px-6 py-7 sm:px-10 sm:py-8 flex flex-col items-center text-center">
             <motion.img
-              src="/main_logo1.png"
-              alt="SAT HACK, powered by Perplexity"
+              src="/sathack_logo.png"
+              alt="SAT HACK"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 150 }}
-              className="w-full max-w-[240px] sm:max-w-[280px] h-auto"
+              className="w-full max-w-[190px] sm:max-w-[210px] h-auto"
             />
 
-            <h1 className="mt-6 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">
+            <h1 className="mt-5 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">
               Project Submission Portal
             </h1>
             <p className="mt-2 text-sm sm:text-base text-gray-600">
@@ -74,7 +83,7 @@ const Auth = () => {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={busy}
-              className="mt-8 w-full h-12 sm:h-14 rounded-xl bg-gray-900 text-white text-base sm:text-lg font-medium flex items-center justify-center gap-3 shadow-lg transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-gray-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="mt-6 w-full h-12 sm:h-13 rounded-xl bg-gray-900 text-white text-base sm:text-lg font-medium flex items-center justify-center gap-3 shadow-lg transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-gray-400 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {busy ? (
                 <span className="h-5 w-5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
@@ -86,7 +95,7 @@ const Auth = () => {
               <span>{busy ? "Signing in..." : "Continue with Google"}</span>
             </button>
 
-            <div className="mt-6 w-full flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 ring-1 ring-amber-200">
+            <div className="mt-5 w-full flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 ring-1 ring-amber-200">
               <Info className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
               <p>
                 <span className="font-semibold">Only team leaders can log in.</span>{" "}
