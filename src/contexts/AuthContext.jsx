@@ -94,9 +94,9 @@ export const AuthProvider = ({ children }) => {
 
         const status = error.response?.status;
         if (status === 401 || status === 403) {
-          // The backend rejected this account (invalid/revoked token or no
-          // verified email): show the server's reason.
-          toast.error(getErrorMessage(error, 'Could not sign you in with this account.'));
+          // The backend rejected this account (not on the team leader list,
+          // invalid/revoked token, unverified email): show the server's reason.
+          toast.error(getErrorMessage(error, 'Only team leaders can access this portal.'));
         } else {
           toast.error(getErrorMessage(error, 'Authentication failed. Please try again.'));
         }

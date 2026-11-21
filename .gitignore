@@ -25,3 +25,8 @@ dist-ssr
 
 # Environment
 .env
+
+# Leader lists / participant data (personal data: never commit)
+*.xlsx
+*.xls
+*.csv

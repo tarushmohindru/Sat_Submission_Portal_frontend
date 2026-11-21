@@ -72,6 +72,9 @@ const Auth = () => {
             <CardTitle className="text-3xl font-bold bg-linear-to-r from-black to-black/80 bg-clip-text text-transparent mb-0 pb-2">
               SatHack Submission Portal
             </CardTitle>
+            <h6 className="text-gray-900">
+              Only team leaders can login, using the email they registered with
+            </h6>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>

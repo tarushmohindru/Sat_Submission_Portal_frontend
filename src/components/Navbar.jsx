@@ -34,13 +34,11 @@ const Navbar = () => {
     <nav className="fixed top-0 w-full z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          {/* TODO: add this logo to /public and use a local path (none of the
-              current files in public/ is this logo). */}
+          {/* Served from public/ (the old external logo URL's domain is gone). */}
           <img
-            src="https://itsakarsh.tech/event/images/1761475408771_SATFinalLogoPNG.png"
-            alt="SatHack Logo"
-            referrerPolicy="no-referrer"
-            className="h-10 w-auto"
+            src="/logo.png"
+            alt="Saturnalia"
+            className="h-8 w-auto"
           />
           <div className="h-6 w-px bg-white/20" /> {/* Divider */}
           <h1 className="text-xl font-semibold text-white">
