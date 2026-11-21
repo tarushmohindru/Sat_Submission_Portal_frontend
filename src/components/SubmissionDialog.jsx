@@ -8,9 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-const SubmissionDialog = ({ isOpen, onClose, onConfirm, formData, teamInfo, isSubmitting }) => {
-  const leader = teamInfo?.members?.[0];
-  
+const SubmissionDialog = ({ isOpen, onClose, onConfirm, formData, leaderEmail, isSubmitting }) => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !isSubmitting && onClose(!open)}>
       <DialogContent className="bg-black/10 backdrop-blur-lg border border-white/20 text-white max-w-2xl">
@@ -21,27 +19,28 @@ const SubmissionDialog = ({ isOpen, onClose, onConfirm, formData, teamInfo, isSu
           <DialogDescription className="text-white/70">
             Please review your submission details before confirming.
           </DialogDescription>
+          <p className="text-sm text-amber-400">
+            Submissions are final. You won't be able to edit this after confirming.
+          </p>
         </DialogHeader>
 
         <div className="space-y-4 my-4">
-          {teamInfo && (
-            <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm font-medium text-white/70">
                   Team Details
                 </h4>
-                <p className="text-white mt-1">{teamInfo.teamName || "N/A"}</p>
-                <p className="text-white/60 text-xs mt-1">ID: {teamInfo.teamId || teamInfo.id || "N/A"}</p>
+                <p className="text-white mt-1">{formData.teamName || "N/A"}</p>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-white/70">
                   Leader Details
                 </h4>
-                <p className="text-white mt-1">{leader?.name || "N/A"}</p>
-                <p className="text-white/60 text-xs mt-1">{leader?.email || "N/A"}</p>
+                <p className="text-white mt-1">{formData.leaderName || "N/A"}</p>
+                <p className="text-white/60 text-xs mt-1">{leaderEmail || "N/A"}</p>
+                <p className="text-white/60 text-xs mt-1">{formData.leaderPhone || "N/A"}</p>
               </div>
             </div>
-          )}
 
           <div className="space-y-3 mt-4">
             <h4 className="text-sm font-medium text-white/70">Project Links</h4>
