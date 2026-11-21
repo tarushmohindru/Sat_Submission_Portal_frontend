@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  AlarmClock,
   CheckCircle2,
   ExternalLink,
   FileText,
@@ -20,6 +21,7 @@ import { useAuth } from "@/contexts/useAuth";
 import { submitTeamData, getSubmission } from "@/services/submissionService";
 import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/errors";
+import { DEADLINE_LABEL, SUBMISSION_DEADLINE, formatTimeLeft } from "@/lib/deadline";
 
 const INITIAL_FORM_STATE = {
   teamName: "",
@@ -87,6 +89,45 @@ const SummaryLink = ({ icon: Icon, label, href }) => (
   </a>
 );
 
+/** Deadline notice shown to every leader after login, with a live countdown. */
+const DeadlineBanner = ({ msLeft }) => {
+  const closed = msLeft <= 0;
+  const urgent = !closed && msLeft < 30 * 60 * 1000;
+  return (
+    <div
+      role="status"
+      className={cn(
+        "mb-6 flex items-start gap-3 rounded-xl border p-4 backdrop-blur",
+        closed
+          ? "border-red-400/40 bg-red-500/15"
+          : urgent
+            ? "border-orange-400/40 bg-orange-500/15"
+            : "border-amber-400/40 bg-amber-500/15"
+      )}
+    >
+      <AlarmClock
+        className={cn("h-6 w-6 shrink-0", closed ? "text-red-300" : urgent ? "text-orange-300" : "text-amber-300")}
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className={cn("font-semibold", closed ? "text-red-200" : "text-amber-100")}>
+          Submission deadline: {DEADLINE_LABEL} IST
+          {!closed && (
+            <span className={cn("ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium", urgent ? "bg-orange-400/25 text-orange-100" : "bg-amber-400/20 text-amber-100")}>
+              {formatTimeLeft(msLeft)}
+            </span>
+          )}
+        </p>
+        <p className={cn("mt-1 text-sm", closed ? "text-red-100/90" : "text-amber-100/90")}>
+          {closed
+            ? "Submissions are now closed. No submissions will be entertained after 5:30 AM."
+            : "No submissions will be entertained after 5:30 AM."}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const Submission = () => {
   const { isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -95,12 +136,33 @@ const Submission = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasExistingSubmission, setHasExistingSubmission] = useState(false);
   const [submittedAt, setSubmittedAt] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick so the countdown and the "closed" state update on their own.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const msLeft = SUBMISSION_DEADLINE.getTime() - now;
+  const deadlinePassed = msLeft <= 0;
 
   // Load the team's submission (if any). Submissions are final, so once one
   // exists the page shows a read-only summary instead of the form.
   const loadSubmission = useCallback(async () => {
     try {
       const submissionResponse = await getSubmission();
+
+      if (!submissionResponse.hasSubmission) {
+        // Pre-fill team details the organisers stored for this leader (still editable).
+        const profile = user?.profile ?? {};
+        setFormData((prev) => ({
+          ...prev,
+          teamName: prev.teamName || profile.teamName || "",
+          leaderName: prev.leaderName || profile.leaderName || "",
+          leaderPhone: prev.leaderPhone || profile.leaderPhone || "",
+        }));
+      }
 
       if (submissionResponse.hasSubmission && submissionResponse.data) {
         const data = submissionResponse.data;
@@ -122,7 +184,7 @@ const Submission = () => {
         toast.error(getErrorMessage(error, "Failed to load submission"));
       }
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -150,6 +212,11 @@ const Submission = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (hasExistingSubmission) return;
+    if (Date.now() >= SUBMISSION_DEADLINE.getTime()) {
+      setNow(Date.now());
+      toast.error("The submission deadline (5:30 AM) has passed. No submissions are being accepted.");
+      return;
+    }
     if (Object.values(formData).some((value) => !value.trim())) {
       toast.error("Please fill in all required fields");
       return;
@@ -209,6 +276,8 @@ const Submission = () => {
             </p>
           </header>
 
+          <DeadlineBanner msLeft={msLeft} />
+
           <div className="rounded-2xl border border-white/15 bg-neutral-950/80 backdrop-blur-md shadow-2xl">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center gap-4 py-20">
@@ -253,6 +322,15 @@ const Submission = () => {
                     </p>
                   </div>
                 </section>
+              </div>
+            ) : deadlinePassed ? (
+              /* ---------------- Deadline passed, nothing submitted ---------------- */
+              <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+                <AlarmClock className="h-10 w-10 text-red-300" aria-hidden="true" />
+                <p className="text-lg font-semibold text-white">Submissions are closed</p>
+                <p className="max-w-md text-sm text-white/70">
+                  The deadline was {DEADLINE_LABEL} IST. No submissions will be entertained after 5:30 AM.
+                </p>
               </div>
             ) : (
               /* ---------------- Not submitted yet: the form ---------------- */
