@@ -1,18 +1,19 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import api from '../lib/axios';
-import { authenticateUser, logoutUser as apiLogout } from '../services/authService';
+import { authenticateUser } from '../services/authService';
+import { getErrorMessage } from '../lib/errors';
+import { AuthContext } from './auth-context';
 import { toast } from 'react-toastify';
 
-const AuthContext = createContext(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+// The portal session token is stored in localStorage; the axios request
+// interceptor (lib/axios.js) attaches it to every API request.
+const clearStoredToken = () => {
+  try {
+    localStorage.removeItem('token');
+  } catch {
+    // localStorage may be unavailable; nothing to clear
   }
-  return context;
 };
 
 export const AuthProvider = ({ children }) => {
@@ -22,144 +23,72 @@ export const AuthProvider = ({ children }) => {
   const [teamData, setTeamData] = useState(null);
   const authAttemptRef = useRef(null); // Track auth attempts to prevent loops
 
-  // Initialize axios Authorization header if token exists in localStorage
   useEffect(() => {
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        api.defaults.headers = api.defaults.headers || {};
-        api.defaults.headers.common = api.defaults.headers.common || {};
-        api.defaults.headers.common.Authorization = `Bearer ${token}`;
-      }
-    } catch {
-      // Ignore if localStorage isn't available
-    }
-  }, []);
+    const clearSession = () => {
+      setUser(null);
+      setIsAuthenticated(false);
+      setTeamData(null);
+    };
 
-  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-
-    // try {
-    //   const redirectResult = await getRedirectResult(auth);
-
-    //   if (redirectResult?.user) {
-    //     console.log("[AUTH] Redirect sign-in successful");
-    //   }
-    // } catch (err) {
-    //   console.error("Redirect auth error:", err);
-    // }
-
-
-      if (firebaseUser) {
-        // Prevent infinite loop: if we're already processing this user, skip
-        const currentUid = firebaseUser.uid;
-        if (authAttemptRef.current === currentUid) {
-          console.log('[AUTH] Skipping duplicate auth attempt for:', currentUid);
-          return;
-        }
-
-        try {
-          setIsLoading(true);
-          authAttemptRef.current = currentUid; // Mark this UID as being processed
-          
-          // Authenticate with backend
-          const authResponse = await authenticateUser(
-            firebaseUser.uid,
-            firebaseUser.email
-          );
-
-          // If backend returned a token (localStorage flow), store it and set axios header
-          try {
-            if (authResponse?.token) {
-              localStorage.setItem('token', authResponse.token);
-              api.defaults.headers = api.defaults.headers || {};
-              api.defaults.headers.common = api.defaults.headers.common || {};
-              api.defaults.headers.common.Authorization = `Bearer ${authResponse.token}`;
-            }
-          } catch (err) {
-            console.warn('[AUTH] Could not persist token to localStorage', err);
-          }
-          
-          // Clear the attempt ref on success
-          authAttemptRef.current = null;
-          
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            teamId: authResponse.teamId,
-            ...authResponse,
-          });
-          setIsAuthenticated(true);
-        } catch (error) {
-          console.error('Backend authentication failed:', error);
-          
-          // Clear the attempt ref before signing out
-          authAttemptRef.current = null;
-
-          // Clear any stored token/header to avoid reusing an invalid token
-          try {
-            localStorage.removeItem('token');
-            if (api?.defaults?.headers?.common) {
-              delete api.defaults.headers.common.Authorization;
-            }
-          } catch {
-            // ignore
-          }
-          
-          // Determine if this is a permanent error (403) or temporary (401/network)
-          const isPermanentError = error.response?.status === 403;
-          const isAuthError = error.response?.status === 401;
-          
-          // Only sign out from Firebase for permanent errors (403) or if explicitly needed
-          // For 401 (session issues), don't sign out immediately to prevent loop
-          if (isPermanentError) {
-            // Permanent rejection (not a team leader, etc.) - sign out
-            await auth.signOut();
-            setUser(null);
-            setIsAuthenticated(false);
-            setTeamData(null);
-            
-            // Show user-friendly error message
-            let errorMessage = "Only team leaders can access this portal.";
-
-            if (error.response?.data?.error) {
-              errorMessage = error.response.data.error;
-            } else if (Array.isArray(error.response?.data?.details)) {
-              errorMessage = error.response.data.details.join(", ");
-            } else if (typeof error.response?.data === "string") {
-              errorMessage = error.response.data;
-            }
-
-            toast.error(errorMessage);
-          } else if (isAuthError) {
-            // Session/token issue - clear state but don't sign out from Firebase
-            // This prevents the loop while allowing user to retry
-            setUser(null);
-            setIsAuthenticated(false);
-            setTeamData(null);
-            
-            // Only show error if it's not a silent retry
-            if (!error.response?.data?.details?.includes('No session token')) {
-              toast.error("Session expired. Please sign in again.");
-            }
-          } else {
-            // Network or other errors - don't sign out, just clear state
-            setUser(null);
-            setIsAuthenticated(false);
-            setTeamData(null);
-            toast.error("Authentication failed. Please try again.");
-          }
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
+      if (!firebaseUser) {
         // User signed out - clear everything
         authAttemptRef.current = null;
-        setUser(null);
-        setIsAuthenticated(false);
-        setTeamData(null);
+        clearSession();
+        setIsLoading(false);
+        return;
+      }
+
+      // Prevent infinite loop: if we're already processing this user, skip
+      const currentUid = firebaseUser.uid;
+      if (authAttemptRef.current === currentUid) {
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        authAttemptRef.current = currentUid;
+
+        // Prove the sign-in to the backend with a Firebase ID token.
+        const idToken = await firebaseUser.getIdToken();
+        const authResponse = await authenticateUser(idToken);
+
+        try {
+          if (authResponse?.token) {
+            localStorage.setItem('token', authResponse.token);
+          }
+        } catch (err) {
+          console.warn('[AUTH] Could not persist token to localStorage', err);
+        }
+
+        authAttemptRef.current = null;
+
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+          teamId: authResponse.teamId,
+          ...authResponse,
+        });
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Backend authentication failed:', error);
+        authAttemptRef.current = null;
+        clearStoredToken();
+        clearSession();
+
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          // The backend rejected this Firebase account (not a leader, team not
+          // confirmed, invalid/revoked token). Sign out of Firebase so the user
+          // isn't left signed in but stuck, and show the server's reason.
+          await auth.signOut();
+          toast.error(getErrorMessage(error, 'Only team leaders can access this portal.'));
+        } else {
+          toast.error(getErrorMessage(error, 'Authentication failed. Please try again.'));
+        }
+      } finally {
         setIsLoading(false);
       }
     });
@@ -168,39 +97,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = async () => {
-    try {
-      await apiLogout();
-      await auth.signOut();
-      // Clear stored token and axios header
-      try {
-        localStorage.removeItem('token');
-        if (api?.defaults?.headers?.common) {
-          delete api.defaults.headers.common.Authorization;
-        }
-      } catch (err) {
-        console.debug('[AUTH] Failed to remove token/header', err);
-      }
-
-      setUser(null);
-      setIsAuthenticated(false);
-      setTeamData(null);
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Still sign out from Firebase even if API call fails
-      await auth.signOut();
-      try {
-        localStorage.removeItem('token');
-        if (api?.defaults?.headers?.common) {
-          delete api.defaults.headers.common.Authorization;
-        }
-      } catch (err) {
-        console.debug('[AUTH] Failed to remove token/header', err);
-      }
-
-      setUser(null);
-      setIsAuthenticated(false);
-      setTeamData(null);
-    }
+    // Auth is a Bearer token in localStorage; logging out is client-side only.
+    clearStoredToken();
+    setUser(null);
+    setIsAuthenticated(false);
+    setTeamData(null);
+    await auth.signOut();
   };
 
   const value = {
@@ -214,4 +116,3 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

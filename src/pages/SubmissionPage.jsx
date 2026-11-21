@@ -5,11 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Navbar from "@/components/Navbar";
+import Background from "@/components/Background";
 import SubmissionDialog from "@/components/SubmissionDialog";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { submitTeamData, getSubmission } from "@/services/submissionService";
 import { getTeamRegistration } from "@/services/authService";
 import { toast } from "react-toastify";
+import { getErrorMessage } from "@/lib/errors";
 
 const INITIAL_FORM_STATE = {
   githubLink: "",
@@ -39,7 +41,7 @@ const Submission = () => {
           setTeamInfo(teamResponse.data);
         } catch (error) {
           console.error("Error loading team data:", error);
-          toast.error("Failed to load team information");
+          toast.error(getErrorMessage(error, "Failed to load team information"));
         }
         
         // Load existing submission
@@ -58,9 +60,8 @@ const Submission = () => {
           }
         } catch (error) {
           console.error("Error loading submission:", error);
-          // Only show error if it's not a "not found" error
-          if (error.error && !error.error.includes("not found")) {
-            toast.error(error.error || "Failed to load submission");
+          if (error.response?.status !== 404) {
+            toast.error(getErrorMessage(error, "Failed to load submission"));
           }
         }
       } finally {
@@ -98,29 +99,17 @@ const Submission = () => {
       setIsSubmitting(true);
       
       const response = await submitTeamData(formData);
-      
-      if (response.isExisting) {
-        toast.info("Submission already exists. Your previous submission has been loaded.");
-        // Update form data with existing submission
-        if (response.data) {
-          setFormData({
-            githubLink: response.data.githubLink || "",
-            pptLink: response.data.pptLink || "",
-            videoLink: response.data.videoLink || "",
-            description: response.data.description || "",
-          });
-        }
-        setHasExistingSubmission(true);
+
+      if (response.updated) {
+        toast.success("Submission updated");
       } else {
         toast.success("Submission successful! Your project has been submitted.");
-        setHasExistingSubmission(true);
       }
-      
+      setHasExistingSubmission(true);
       setShowConfirmation(false);
     } catch (error) {
       console.error("Submission error:", error);
-      const errorMessage = error.error || error.details?.[0] || "Failed to submit. Please try again.";
-      toast.error(errorMessage);
+      toast.error(getErrorMessage(error, "Failed to submit. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -128,18 +117,7 @@ const Submission = () => {
 
   return (
     <div className="min-h-screen w-full relative">
-      {/* Background elements - same as Auth page */}
-      <div className="fixed inset-0 bg-linear-to-br from-grey-800 via-grey-900 to-black animate-gradient" />
-      <motion.img
-        src="./Auth_back.png"
-        alt="background"
-        className="fixed inset-0 w-full h-full object-cover opacity-50"
-        initial={{ scale: 1.2 }}
-        animate={{ scale: 1 }}
-        transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
-      />
-      <div className="fixed inset-0 bg-linear-to-t from-black/90 via-black/50 to-transparent" />
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_0%,transparent_50%)] animate-pulse" />
+      <Background initialScale={1.2} />
 
       {/* Navbar */}
       <Navbar />

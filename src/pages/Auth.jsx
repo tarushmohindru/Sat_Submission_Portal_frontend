@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -11,8 +11,8 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { auth, provider } from "../lib/firebase";
 import { signInWithPopup } from "firebase/auth";
-import { signInWithRedirect } from "firebase/auth";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/useAuth";
+import Background from "../components/Background";
 import { toast } from "react-toastify";
 
 const Auth = () => {
@@ -20,14 +20,12 @@ const Auth = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Redirect to submission page if already authenticated
+  // Once the backend login has finished: go to the submission page, or reset
+  // the button if the login was rejected. Do nothing while it is still running.
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate("/submission");
-    }
-    else{
-      setIsSigningIn(false)
-    }
+    if (isLoading) return;
+    if (isAuthenticated) navigate("/submission");
+    else setIsSigningIn(false);
   }, [isAuthenticated, isLoading, navigate]);
 
   const handleGoogleSignIn = async () => {
@@ -35,7 +33,6 @@ const Auth = () => {
 
     try {
       setIsSigningIn(true);
-      // await signInWithRedirect(auth, provider);
       await signInWithPopup(auth, provider);
       // Backend authentication is handled by AuthContext
       // Navigation happens automatically when isAuthenticated becomes true
@@ -48,24 +45,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center overflow-hidden">
-      {/* Animated Background Gradient - Fixed */}
-      <div className="fixed inset-0 bg-linear-to-br from-grey-800 via-grey-900 to-black animate-gradient" />
-
-      {/* Background Image with Ken Burns effect - Fixed */}
-      <motion.img
-        src="./Auth_back.png"
-        alt="background"
-        className="fixed inset-0 w-full h-full object-cover opacity-50"
-        initial={{ scale: 1.1 }}
-        animate={{ scale: 1 }}
-        transition={{ duration: 20, repeat: Infinity, repeatType: "reverse" }}
-      />
-
-      {/* Gradient Overlay - Fixed */}
-      <div className="fixed inset-0 bg-linear-to-t from-black/90 via-black/50 to-transparent" />
-
-      {/* Floating Particles Effect - Fixed */}
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.1)_0%,transparent_50%)] animate-pulse" />
+      <Background initialScale={1.1} />
 
       {/* Auth Card */}
       <motion.div
@@ -74,7 +54,7 @@ const Auth = () => {
         transition={{ duration: 0.7, ease: "easeOut" }}
         className="relative z-10"
       >
-        <Card className="w-[full] backdrop-blur-md bg-white/50 border border-white/10 shadow-2xl">
+        <Card className="w-full backdrop-blur-md bg-white/50 border border-white/10 shadow-2xl">
           <CardHeader className="space-y-6 text-center pt-8 pb-4">
             <motion.div
               initial={{ scale: 0 }}
@@ -83,7 +63,8 @@ const Auth = () => {
             >
               <div className="w-80 h-32 p-10 mx-auto rounded-xl flex items-center justify-center">
                 <img
-                  src="./main_logo1.png"
+                  src="/main_logo1.png"
+                  alt="SAT HACK"
                   className="w-80 h-auto"
                 />
               </div>
@@ -91,7 +72,7 @@ const Auth = () => {
             <CardTitle className="text-3xl font-bold bg-linear-to-r from-black to-black/80 bg-clip-text text-transparent mb-0 pb-2">
               SatHack Submission Portal
             </CardTitle>
-            <h6 className=" text-grey-900">Only team leaders can login</h6>
+            <h6 className="text-gray-900">Only team leaders can login</h6>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -107,22 +88,6 @@ const Auth = () => {
                 </span>
               </Button>
             </motion.div>
-            <p className="text-white/60 text-center text-sm px-6">
-              By continuing, you agree to our{" "}
-              <a
-                href="#"
-                className="text-white/80 hover:text-white underline decoration-dotted"
-              >
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a
-                href="#"
-                className="text-white/80 hover:text-white underline decoration-dotted"
-              >
-                Privacy Policy
-              </a>
-            </p>
           </CardContent>
         </Card>
       </motion.div>
